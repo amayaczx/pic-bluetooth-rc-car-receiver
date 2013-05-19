@@ -18,29 +18,28 @@
 #define TMR2_PRESCALAR          4 // i.e. assume 1:4 TMR2 prescalar
 #define COUNTS_PER_T_100us(T,S) ((T * _XTAL_FREQ) / (4 * S * 10000ul)) // i.e. TMR clock = (Fosc/4)
 
+// UART specific constants
+#define MAX_BUFFER_SIZE         30
+char putch_buffer[MAX_BUFFER_SIZE];
+int head = 0;
+int tail = 0;
+
 // servo specific constants
 #define _20ms_PWM_PERIOD        COUNTS_PER_T_100us(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms
 #define MAX_PULSE_WIDTH         COUNTS_PER_T_100us(27, TMR1_PRESCALAR) // i.e. 27 * 100us = 2.7ms
 #define MIN_PULSE_WIDTH         COUNTS_PER_T_100us(5, TMR1_PRESCALAR) // i.e. 5 * 100us = 0.5ms
 #define MAX_SERVO_POS           0x3f
 #define SERVO_POS_2_WIDTH       ((MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / MAX_SERVO_POS)
-
-// motor ctrl specific constants
-#define _100us_PWM_PERIOD       COUNTS_PER_T_100us(1, TMR2_PRESCALAR) // i.e. 100us or 10KHz
-#define _100us_PERIOD_10BIT_RES COUNTS_PER_T_100us(1, TMR2_PRESCALAR/4) // i.e. assuming a 10-bit counter is being used
-#define MAX_MOTOR_SPEED         0x1f
-
-#define MAX_BUFFER_SIZE         30
-char putch_buffer[MAX_BUFFER_SIZE];
-int head = 0;
-int tail = 0;
-
 char servo_pos = 0;
 int pwm_pulse_width = 0;
 int pwm_state_tmr_presets[2]; // array of pwm OFF[0]/ON[1] timer presets
 char pwm_current_state = 0; // current output state i.e. ON[1] or OFF[0]
 int pwm_cycle_cnt_debug = 0;
 
+// motor ctrl specific constants
+#define _100us_PWM_PERIOD       COUNTS_PER_T_100us(1, TMR2_PRESCALAR) // i.e. 100us or 10KHz
+#define _100us_PERIOD_10BIT_RES COUNTS_PER_T_100us(1, TMR2_PRESCALAR/4) // i.e. assuming a 10-bit counter is being used
+#define MAX_MOTOR_SPEED         0x1f
 int motor_speed = 0;
 int motor_duty_cycle = 0;
 
