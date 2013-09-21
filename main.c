@@ -169,12 +169,12 @@ void interrupt handle_int() {
         pwm_cycle_cnt_debug++;
 
         // leverage servo PWM TMR1 to reset controls after input timeout
-//        if (pwm_current_state == 1) { // this is true every 20ms
-//            if (--controller_input_timeout == 0) {
-//                set_motor_speed_and_dir(0);
-//                set_servo_position(CENTER_SERVO_POS);
-//            }
-//        }
+        if (pwm_current_state == 1) { // this is true every 20ms
+            if (--controller_input_timeout == 0) {
+                set_motor_speed_and_dir(0);
+                set_servo_position(CENTER_SERVO_POS);
+            }
+        }
         return;
     }
 
@@ -206,7 +206,7 @@ void interrupt handle_int() {
 }
 
 void bootstrap() {
-    //init_osc();
+    init_osc();
     init_interrupts();
     init_uart();
 
