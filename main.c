@@ -25,13 +25,15 @@ char putch_buffer[MAX_BUFFER_SIZE];
 int head = 0;
 int tail = 0;
 
-// servo specific constants
+// servo specific macros & constants
 #define _20ms_PWM_PERIOD        COUNTS_PER_N_100us_INTERVALS(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms servo pulse period (20 KHz pulse rate)
 #define MAX_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(27, TMR1_PRESCALAR) // i.e. 27 * 100us = 2.7ms
 #define MIN_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(5, TMR1_PRESCALAR) // i.e. 5 * 100us = 0.5ms
 #define MAX_SERVO_POS           0x3f
-#define SERVO_POS_2_WIDTH       ((MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / MAX_SERVO_POS)
-#define PERIOD_2_TMR1PRESET(P)  (TMR1_MAX_COUNT - P)
+#define CENTER_SERVO_POS        (MAX_SERVO_POS + 1) / 2
+#define POS_2_WIDTH_RATIO       ((MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / MAX_SERVO_POS)
+#define SERVO_POS_2_WIDTH(P)    POS_2_WIDTH_RATIO * P
+#define PERIOD_2_TMR1PRESET(P)  (TMR1_MAX_COUNT - (P))
 char servo_pos = 0;
 int pwm_pulse_width = 0;
 int pwm_state_tmr_presets[2]; // a 2-element array which when indexed by 0 -> PWM PULSE_OFF or 1 -> PULSE_ON returns associated timer presets
@@ -40,17 +42,19 @@ int pwm_cycle_cnt_debug = 0;
 
 #define PULSE_OFF               0
 #define PULSE_ON                1
-#define INVERT_STATE(s)         (s ^ 0x01)
+#define INVERT_STATE(S)         (S ^ 0x01)
 
 // motor ctrl specific constants
 #define _100us_PWM_PERIOD       COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR) // i.e. 1000us or 1KHz
 #define _100us_PERIOD_10BIT_RES COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR/4) // i.e. TMR2 extended to 10-bits with 2-bits of prescalar
 
-#define MAX_MOTOR_SPEED         0x1f
+#define MOTOR_SPEED_MASK        0x1f
 #define MOTOR_COMMAND           0x40
 
 int motor_speed = 0;
 int motor_duty_cycle = 0;
+
+int controller_input_timeout = 0;
 
 void init_osc() {
     // setup INTRC frequency
@@ -94,7 +98,7 @@ void putch(char data) {
 #pragma interrupt_level 1
 void set_servo_position(char pos) {
     servo_pos = pos & MAX_SERVO_POS;
-    pwm_pulse_width = MIN_PULSE_WIDTH + SERVO_POS_2_WIDTH * servo_pos;
+    pwm_pulse_width = MIN_PULSE_WIDTH + SERVO_POS_2_WIDTH(servo_pos);
     // set the (pulse) ON timer preset; sets pulse period effectively
     pwm_state_tmr_presets[PULSE_ON] = PERIOD_2_TMR1PRESET(pwm_pulse_width);
     // set the OFF timer preset
@@ -111,7 +115,7 @@ void apply_next_pwm_state() {
 
 void init_servo_pwm_output() {
     TRISA1 = 0; // set RA1 as servo PWM output
-    set_servo_position((MAX_SERVO_POS + 1) / 2); // init pulse width settings to 50% before next call
+    set_servo_position(CENTER_SERVO_POS); 
     apply_next_pwm_state();
 }
 
@@ -131,8 +135,8 @@ void init_timer1() {
 #pragma interrupt_level 1
 void set_motor_speed_and_dir(char speed_and_dir) {
     RB1 = (speed_and_dir >> 5) & 0x1; // set motor direction using bit 5
-    motor_speed = speed_and_dir & MAX_MOTOR_SPEED; // set motor speed using bits 4:0
-    motor_duty_cycle = (_100us_PERIOD_10BIT_RES * motor_speed) / MAX_MOTOR_SPEED;
+    motor_speed = speed_and_dir & MOTOR_SPEED_MASK; // set motor speed using bits 4:0
+    motor_duty_cycle = (_100us_PERIOD_10BIT_RES * motor_speed) >> 5; // optimised division by max motor speed => MOTOR_SPEED_MASK;
     CCPR1L = motor_duty_cycle >> 2; // set duty cycle reg top 8 most significant bits
     CCP1CON = ((0b11 & motor_duty_cycle) << 4) | (0xf & CCP1CON); // set duty cycle reg bottom 2 least significant bits
 }
@@ -163,13 +167,22 @@ void interrupt handle_int() {
         TMR1IF = 0;
         apply_next_pwm_state();
         pwm_cycle_cnt_debug++;
+
+        // leverage servo PWM TMR1 to reset controls after input timeout
+//        if (pwm_current_state == 1) { // this is true every 20ms
+//            if (--controller_input_timeout == 0) {
+//                set_motor_speed_and_dir(0);
+//                set_servo_position(CENTER_SERVO_POS);
+//            }
+//        }
         return;
     }
 
-    // uart receiver events: received control instructions on serial
+    // UART receiver events: received control instructions on serial
     if (RCIE && RCIF) {
         // read data & clear interrupt flag
         char ctrl_byte = RCREG;
+        controller_input_timeout = 50; // 50 * 20ms = 1s timeout
         if (ctrl_byte & MOTOR_COMMAND) {
             set_motor_speed_and_dir(ctrl_byte);
         } else {
@@ -178,7 +191,7 @@ void interrupt handle_int() {
         return;
     }
 
-    // uart transmitter events: write available data to serial
+    // UART transmitter events: write available data to serial
     if (TXIE && TXIF) {
         if (head != tail) {
             TXREG = putch_buffer[head++];
