@@ -26,22 +26,29 @@ int head = 0;
 int tail = 0;
 
 // servo specific constants
-#define _20ms_PWM_PERIOD        COUNTS_PER_N_100us_INTERVALS(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms
+#define _20ms_PWM_PERIOD        COUNTS_PER_N_100us_INTERVALS(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms servo pulse period (20 KHz pulse rate)
 #define MAX_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(27, TMR1_PRESCALAR) // i.e. 27 * 100us = 2.7ms
 #define MIN_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(5, TMR1_PRESCALAR) // i.e. 5 * 100us = 0.5ms
 #define MAX_SERVO_POS           0x3f
 #define SERVO_POS_2_WIDTH       ((MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / MAX_SERVO_POS)
+#define PERIOD_2_TMR1PRESET(P)  (TMR1_MAX_COUNT - P)
 char servo_pos = 0;
 int pwm_pulse_width = 0;
-int pwm_state_tmr_presets[2]; // array of pwm OFF[0]/ON[1] timer presets
-char pwm_current_state = 0; // current output state i.e. ON[1] or OFF[0]
+int pwm_state_tmr_presets[2]; // a 2-element array which when indexed by 0 -> PWM PULSE_OFF or 1 -> PULSE_ON returns associated timer presets
+char pwm_current_state = 0; // current output state i.e. 1 -> PULSE_ON or 0 -> PULSE_OFF
 int pwm_cycle_cnt_debug = 0;
+
+#define PULSE_OFF               0
+#define PULSE_ON                1
+#define INVERT_STATE(s)         (s ^ 0x01)
 
 // motor ctrl specific constants
 #define _100us_PWM_PERIOD       COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR) // i.e. 1000us or 1KHz
 #define _100us_PERIOD_10BIT_RES COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR/4) // i.e. TMR2 extended to 10-bits with 2-bits of prescalar
 
 #define MAX_MOTOR_SPEED         0x1f
+#define MOTOR_COMMAND           0x40
+
 int motor_speed = 0;
 int motor_duty_cycle = 0;
 
@@ -88,15 +95,15 @@ void putch(char data) {
 void set_servo_position(char pos) {
     servo_pos = pos & MAX_SERVO_POS;
     pwm_pulse_width = MIN_PULSE_WIDTH + SERVO_POS_2_WIDTH * servo_pos;
-    // set the ON (pulse) time preset
-    pwm_state_tmr_presets[1] = TMR1_MAX_COUNT - pwm_pulse_width;
-    // set OFF time preset
-    pwm_state_tmr_presets[0] = TMR1_MAX_COUNT - _20ms_PWM_PERIOD - pwm_pulse_width;
+    // set the (pulse) ON timer preset; sets pulse period effectively
+    pwm_state_tmr_presets[PULSE_ON] = PERIOD_2_TMR1PRESET(pwm_pulse_width);
+    // set the OFF timer preset
+    pwm_state_tmr_presets[PULSE_OFF] = PERIOD_2_TMR1PRESET(_20ms_PWM_PERIOD - pwm_pulse_width);
 }
 
 #pragma interrupt_level 1
 void apply_next_pwm_state() {
-    char next_state = ++pwm_current_state % 2; // set output to next state
+    char next_state = INVERT_STATE(pwm_current_state); // set output to next state
     RA1 = next_state; // output next state
     TMR1 = pwm_state_tmr_presets[next_state]; // apply next state timer preset
     pwm_current_state = next_state; // save next state as current
@@ -113,7 +120,7 @@ void init_servo_pwm_output() {
  */
 void init_timer1() {
     TMR1CS = 0; // internal clock source => (FOSC = 8Mhz)/4
-    T1CONbits.T1CKPS = 0b11; // apply 1:8 prescalar (gives 250 KHz from 2 Mhz internal clock)
+    T1CONbits.T1CKPS = 0b11; // apply 1:8 prescalar (gives 250 KHz from 2 Mhz internal clock; or a PWM resolution of 4us)
     TMR1ON = 1; // enable TMR1
     TMR1IF = 0; // clear TMR1 interrupt flag
     TMR1IE = 1; // enable interrupts for TMR1 overflow
@@ -163,7 +170,7 @@ void interrupt handle_int() {
     if (RCIE && RCIF) {
         // read data & clear interrupt flag
         char ctrl_byte = RCREG;
-        if (ctrl_byte & 0x40) {
+        if (ctrl_byte & MOTOR_COMMAND) {
             set_motor_speed_and_dir(ctrl_byte);
         } else {
             set_servo_position(ctrl_byte);
