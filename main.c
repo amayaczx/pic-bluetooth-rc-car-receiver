@@ -1,8 +1,9 @@
 /* 
  * File:   main.c
- * Author: Kris
+ * 
+ * @author: krisdover@hotmail.com
  *
- * Created on February 10, 2013, 9:08 PM
+ * @change Created on February 10, 2013, 9:08 PM
  */
 
 #include <stdio.h>
@@ -16,7 +17,7 @@
 #define TMR1_MAX_COUNT          0xfffful
 #define TMR1_PRESCALAR          8 // i.e. assume 1:8 TMR1 prescalar
 #define TMR2_PRESCALAR          4 // i.e. assume 1:4 TMR2 prescalar
-#define COUNTS_PER_T_100us(T,S) ((T * _XTAL_FREQ) / (4 * S * 10000ul)) // i.e. TMR clock = (Fosc/4)
+#define COUNTS_PER_N_100us_INTERVALS(N,PRESCALAR) ((N * _XTAL_FREQ) / (4 * PRESCALAR * 10000ul)) // i.e. TMR clock = (Fosc/4)
 
 // UART specific constants
 #define MAX_BUFFER_SIZE         30
@@ -25,9 +26,9 @@ int head = 0;
 int tail = 0;
 
 // servo specific constants
-#define _20ms_PWM_PERIOD        COUNTS_PER_T_100us(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms
-#define MAX_PULSE_WIDTH         COUNTS_PER_T_100us(27, TMR1_PRESCALAR) // i.e. 27 * 100us = 2.7ms
-#define MIN_PULSE_WIDTH         COUNTS_PER_T_100us(5, TMR1_PRESCALAR) // i.e. 5 * 100us = 0.5ms
+#define _20ms_PWM_PERIOD        COUNTS_PER_N_100us_INTERVALS(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms
+#define MAX_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(27, TMR1_PRESCALAR) // i.e. 27 * 100us = 2.7ms
+#define MIN_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(5, TMR1_PRESCALAR) // i.e. 5 * 100us = 0.5ms
 #define MAX_SERVO_POS           0x3f
 #define SERVO_POS_2_WIDTH       ((MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / MAX_SERVO_POS)
 char servo_pos = 0;
@@ -37,8 +38,9 @@ char pwm_current_state = 0; // current output state i.e. ON[1] or OFF[0]
 int pwm_cycle_cnt_debug = 0;
 
 // motor ctrl specific constants
-#define _100us_PWM_PERIOD       COUNTS_PER_T_100us(1, TMR2_PRESCALAR) // i.e. 100us or 10KHz
-#define _100us_PERIOD_10BIT_RES COUNTS_PER_T_100us(1, TMR2_PRESCALAR/4) // i.e. assuming a 10-bit counter is being used
+#define _100us_PWM_PERIOD       COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR) // i.e. 1000us or 1KHz
+#define _100us_PERIOD_10BIT_RES COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR/4) // i.e. TMR2 extended to 10-bits with 2-bits of prescalar
+
 #define MAX_MOTOR_SPEED         0x1f
 int motor_speed = 0;
 int motor_duty_cycle = 0;
@@ -80,7 +82,7 @@ void putch(char data) {
     }
 }
 
-/*------------------------ Servo PWM Speed Controller -----------------------*/
+/*------------- Servo Steering Controller using Timer driven PWM ----------------*/
 
 #pragma interrupt_level 1
 void set_servo_position(char pos) {
@@ -101,7 +103,7 @@ void apply_next_pwm_state() {
 }
 
 void init_servo_pwm_output() {
-    TRISA1 = 0; // set RA1 as servo PWM position output
+    TRISA1 = 0; // set RA1 as servo PWM output
     set_servo_position((MAX_SERVO_POS + 1) / 2); // init pulse width settings to 50% before next call
     apply_next_pwm_state();
 }
@@ -110,8 +112,8 @@ void init_servo_pwm_output() {
  * TMR1 used for servo PWM waveform timing
  */
 void init_timer1() {
-    TMR1CS = 0; // internal clock source (FOSC/4)
-    T1CONbits.T1CKPS = 0b11; // apply 1:8 prescalar (gives 250 KHz from 8Mhz FOSC)
+    TMR1CS = 0; // internal clock source => (FOSC = 8Mhz)/4
+    T1CONbits.T1CKPS = 0b11; // apply 1:8 prescalar (gives 250 KHz from 2 Mhz internal clock)
     TMR1ON = 1; // enable TMR1
     TMR1IF = 0; // clear TMR1 interrupt flag
     TMR1IE = 1; // enable interrupts for TMR1 overflow
@@ -149,7 +151,7 @@ void init_timer2() {
 /*------------------------ sys management routines -----------------------*/
 
 void interrupt handle_int() {
-    // transition servo PWM output state
+    // servo pulse timer events: transition PWM output state
     if (TMR1IE && TMR1IF) {
         TMR1IF = 0;
         apply_next_pwm_state();
@@ -157,7 +159,7 @@ void interrupt handle_int() {
         return;
     }
 
-    // received servo position on serial
+    // uart receiver events: received control instructions on serial
     if (RCIE && RCIF) {
         // read data & clear interrupt flag
         char ctrl_byte = RCREG;
@@ -169,7 +171,7 @@ void interrupt handle_int() {
         return;
     }
 
-    // write uart data on request
+    // uart transmitter events: write available data to serial
     if (TXIE && TXIF) {
         if (head != tail) {
             TXREG = putch_buffer[head++];
