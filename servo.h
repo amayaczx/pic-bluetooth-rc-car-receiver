@@ -13,6 +13,8 @@
 // servo specific macros & constants
 #define PULSE_OFF               0
 #define PULSE_ON                1
+#define TMR1_MAX_COUNT          0xfffful
+#define TMR1_PRESCALAR          8 // i.e. assume 1:8 TMR1 prescalar
 #define _20ms_PWM_PERIOD        COUNTS_PER_N_100us_INTERVALS(200, TMR1_PRESCALAR) // i.e. 200 * 100us = 20ms servo pulse period (20 KHz pulse rate)
 #define MAX_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(27, TMR1_PRESCALAR) // i.e. 27 * 100us = 2.7ms
 #define MIN_PULSE_WIDTH         COUNTS_PER_N_100us_INTERVALS(5, TMR1_PRESCALAR) // i.e. 5 * 100us = 0.5ms

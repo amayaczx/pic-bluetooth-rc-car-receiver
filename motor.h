@@ -11,8 +11,10 @@
 #include "common.h"
 
 // motor specific macros & constants
-#define _100us_PWM_PERIOD       COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR) // i.e. 1000us or 1KHz
-#define _100us_PERIOD_10BIT_RES COUNTS_PER_N_100us_INTERVALS(10, TMR2_PRESCALAR/4) // i.e. TMR2 extended to 10-bits with 2-bits of prescalar
+#define TMR2_PRESCALAR          4 // i.e. assume 1:4 TMR2 prescalar
+#define N_100us                 1 // i.e. 1000us period or 10KHz PWM frequency
+#define PWM_PERIOD              COUNTS_PER_N_100us_INTERVALS(N_100us, TMR2_PRESCALAR)
+#define PWM_FULL_DUTYCYCLE      COUNTS_PER_N_100us_INTERVALS(N_100us, TMR2_PRESCALAR/4) // i.e. TMR2 is extended to 10-bits with 2-bits of prescalar
 
 #define MOTOR_SPEED_MASK        0x1f
 #define MOTOR_COMMAND           0x40

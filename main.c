@@ -99,7 +99,7 @@ int main() {
     printf("MAX_PULSE_WIDTH: %u\r\n", MAX_PULSE_WIDTH);
     printf("MIN_PULSE_WIDTH: %u\r\n", MIN_PULSE_WIDTH);
     printf("MOTOR >>>>\r\n");
-    printf("_100us_PWM_PERIOD: %u\r\n", _100us_PWM_PERIOD);
+    printf("_100us_PWM_PERIOD: %u\r\n", PWM_PERIOD);
 
     while (1) {
         printf("SERVO >> pos: %d, pulse-width: %u, cycle-count: %u\r\n",

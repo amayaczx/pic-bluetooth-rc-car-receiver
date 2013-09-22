@@ -11,7 +11,7 @@ int motor_duty_cycle = 0;
 void set_motor_speed_and_dir(char speed_and_dir) {
     RB1 = (speed_and_dir >> 5) & 0x1; // set motor direction using bit 5
     motor_speed = speed_and_dir & MOTOR_SPEED_MASK; // set motor speed using bits 4:0
-    motor_duty_cycle = (_100us_PERIOD_10BIT_RES * motor_speed) >> 5; // optimised division by max motor speed => MOTOR_SPEED_MASK;
+    motor_duty_cycle = (PWM_FULL_DUTYCYCLE * motor_speed) >> 5; // optimised division by max motor speed => MOTOR_SPEED_MASK;
     CCPR1L = motor_duty_cycle >> 2; // set duty cycle reg top 8 most significant bits
     CCP1CON = ((0b11 & motor_duty_cycle) << 4) | (0xf & CCP1CON); // set duty cycle reg bottom 2 least significant bits
 }
@@ -29,7 +29,7 @@ void init_motor_ctrl_outputs() {
 
 void init_timer2() {
     T2CONbits.T2CKPS = 0b01; // 1:4 prescalar
-    PR2 = _100us_PWM_PERIOD;
+    PR2 = PWM_PERIOD;
     TMR2IE = 0; // disable TMR2 interrupts
     TMR2ON = 1; // enable TMR2
 }

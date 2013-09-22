@@ -14,10 +14,11 @@
 // generic macro & constants
 #define BAUD_RATE               19200
 #define _XTAL_FREQ              8000000ul // i.e. 8 MHz Fosc
-#define TMR1_MAX_COUNT          0xfffful
-#define TMR1_PRESCALAR          8 // i.e. assume 1:8 TMR1 prescalar
-#define TMR2_PRESCALAR          4 // i.e. assume 1:4 TMR2 prescalar
-#define COUNTS_PER_N_100us_INTERVALS(N,PRESCALAR) ((N * _XTAL_FREQ) / (4 * PRESCALAR * 10000ul)) // i.e. TMR clock = (Fosc/4)
+
+/* Calculates the count a given TMR can make within an N * 100us interval
+ * COUNTS = [TMR clock freq = (Fosc/4)/PRESCALAR] * N * [100us = 1/10000 s]
+ */
+#define COUNTS_PER_N_100us_INTERVALS(N,PRESCALAR) (((N) * _XTAL_FREQ) / (4 * PRESCALAR * 10000ul))
 
 #ifdef	__cplusplus
 extern "C" {
