@@ -12,7 +12,7 @@
 
 // motor specific macros & constants
 #define TMR2_PRESCALAR          4 // i.e. assume 1:4 TMR2 prescalar
-#define N_100us                 1 // i.e. 1000us period or 10KHz PWM frequency
+#define N_100us                 1 // i.e. 100us period or 10KHz PWM frequency
 #define PWM_PERIOD              COUNTS_PER_N_100us_INTERVALS(N_100us, TMR2_PRESCALAR)
 #define PWM_FULL_DUTYCYCLE      COUNTS_PER_N_100us_INTERVALS(N_100us, TMR2_PRESCALAR/4) // i.e. TMR2 is extended to 10-bits with 2-bits of prescalar
 
